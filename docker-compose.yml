@@ -1,0 +1,57 @@
+version: '2'
+
+volumes:
+  twnextcloud:
+  db:
+
+services:
+  nginx:
+    # используем последний стабильный образ nginx
+    image: nginx:latest
+    # слева указан порт который займет nginx в локальной ОС, справа указан дефолтный порт на котором nginx работает в контейнере
+    ports:
+      - "8000:80"
+    # монтируем директории, слева директории на основной машине, справа - куда они монтируются в контейнере
+    volumes:
+      - ./hosts:/etc/nginx/conf.d
+      - ./www:/var/www
+      - ./logs:/var/log/nginx
+    links:
+      - php
+
+  php:
+    # у нас свой образ для PHP, указываем путь к нему и говорим что его надо собрать
+    build: ./images/php
+    # образ PHP будет общаться с mysql (имеет зависимость)
+    links:
+      - db
+    # монтируем директории, слева директории на основной машине, справа - куда они монтируются в контейнере
+    volumes:
+      - ./www:/var/www
+
+  db:
+    image: mariadb:10.6
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=RootPass
+      - MYSQL_PASSWORD=NextPass
+      - MYSQL_DATABASE=nextcloudtw
+      - MYSQL_USER=nextcloudtw
+
+  app:
+    image: nextcloud
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    links:
+      - db
+    volumes:
+      - twnextcloud:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=NextPass
+      - MYSQL_DATABASE=nextcloudtw
+      - MYSQL_USER=nextcloudtw
+      - MYSQL_HOST=db
